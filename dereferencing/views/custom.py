@@ -8,11 +8,24 @@ import re
 
 import idc
 import idaapi
+import ida_kernwin
 
 from dereferencing import dbg
+from dereferencing.qt_compat import QtCore, QtWidgets
 from dereferencing.colorizer import Colorizer
 
-# -----------------------------------------------------------------------
+
+class StatusHider(QtCore.QObject):
+    def eventFilter(self, obj, event):
+        if event.type() in (QtCore.QEvent.Show,
+                            QtCore.QEvent.Resize,
+                            QtCore.QEvent.LayoutRequest):
+            obj.setMinimumHeight(0)
+            obj.setMaximumHeight(0)
+            obj.hide()
+        return False
+
+
 class CustViewer(idaapi.simplecustviewer_t, Colorizer):
     def __init__(self):
         idaapi.simplecustviewer_t.__init__(self)
@@ -64,7 +77,7 @@ class CustViewer(idaapi.simplecustviewer_t, Colorizer):
         if not ea or not idaapi.is_loaded(ea):
             return
         
-        window_name = "D-0x%x" % ea
+        window_name = f"D-{ea:#x}"
         widget = idaapi.open_disasm_window(window_name)
         if widget:
             self.jumpto_in_view(widget, ea)
@@ -75,6 +88,7 @@ class CustViewer(idaapi.simplecustviewer_t, Colorizer):
         ea = self.get_current_expr_ea()
         if not ea or not idaapi.is_loaded(ea):
             idaapi.warning("Unable to resolve current expression\n")
+            return
 
         widget = self.find_hex_view()
         if not widget:
@@ -107,6 +121,44 @@ class CustViewer(idaapi.simplecustviewer_t, Colorizer):
     def jumpto_in_view(self, view, ea):
         idaapi.activate_widget(view, True)
         return idaapi.jumpto(ea)
+    
 
-# -----------------------------------------------------------------------
+    def dump_memory(self):
+        word = self.get_current_word()
+        if word is None:
+            return
+               
+        ea = self.resolve_expr(word)
+        if ea is None or not idc.is_loaded(ea):
+            return
 
+        size = idaapi.ask_long(dbg.ptr_size, f"{ea:#x} - Enter dump size")
+        if size is None or size == 0:
+            return
+        
+        output_file = idaapi.ask_file(True, '*', 'Enter the path to save the dump')
+        if output_file is None:
+            return
+        
+        try:
+            data = idc.get_bytes(ea, size, True)
+            with open(output_file, 'wb') as f:
+                f.write(data)
+
+            idaapi.info(f"{len(data)} bytes dumped from {ea:#x} to {output_file}")
+        except Exception as e:
+            idaapi.warning(e)
+        
+    
+
+    def hide_ida_status_bar(self):
+        qwidget = ida_kernwin.PluginForm.TWidgetToPyQtWidget(self.GetWidget())
+        status = qwidget.findChild(QtWidgets.QStatusBar)
+
+        if status:
+            self._status_hider = StatusHider(qwidget)
+            status.installEventFilter(self._status_hider)
+
+            status.setMinimumHeight(0)
+            status.setMaximumHeight(0)
+            status.hide()

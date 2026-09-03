@@ -14,8 +14,9 @@ import idautils
 
 from dereferencing import dbg
 from dereferencing import config
+from dereferencing import utils
 
-# -----------------------------------------------------------------------
+
 T_STACK  = 0
 T_HEAP   = 1
 T_CODE   = 2
@@ -24,14 +25,14 @@ T_RODATA = 4
 T_RWX    = 5
 T_VALUE  = 6
 
-# -----------------------------------------------------------------------
+
 def get_value_type(ea):
     addr_type = T_VALUE
 
     if not idaapi.is_loaded(ea):
         return addr_type
 
-    segm_name = idc.get_segm_name(ea)
+    segm_name = idc.get_segm_name(ea) or ""
     segm = idaapi.getseg(ea)
     flags = idc.get_full_flags(ea)
     is_code = idc.is_code(flags)
@@ -62,8 +63,8 @@ def get_value_type(ea):
 
     return addr_type
 
-# -----------------------------------------------------------------------
-def get_chain(value, limit=config.deref_limit):
+
+def get_chain(value, limit=config.DEREF_LIMIT):
     count = 0
     stop = False
     result = [value]
@@ -84,7 +85,7 @@ def get_chain(value, limit=config.deref_limit):
     exceeded = not stop
     return result, exceeded
 
-# -----------------------------------------------------------------------
+
 class Chain(object):
     def __init__(self, ptr):
         self.ptr = ptr
@@ -92,7 +93,7 @@ class Chain(object):
         self.limit_exceeded = False
         self.parse_chain()
 
-    def parse_chain(self, limit=config.deref_limit):
+    def parse_chain(self, limit=config.DEREF_LIMIT):
         chain, exceeded = get_chain(self.ptr)
         if exceeded:
             self.limit_exceeded = True
@@ -107,7 +108,7 @@ class Chain(object):
     def __len__(self):
         return len(self.values)
 
-# -----------------------------------------------------------------------
+
 class ChainValue(object):
     def __init__(self, level, val, type):
         self.level = level
@@ -115,9 +116,9 @@ class ChainValue(object):
         self.type = type
 
     def __str__(self):
-        return "[%d]=%d" % (self.level, self.val)
+        return f"[{self.level}]={self.value}"
 
-# -----------------------------------------------------------------------
+
 class Colorizer(object):
     def __init__(self):
         self.colours = {
@@ -129,7 +130,7 @@ class Colorizer(object):
             T_RWX:    self.as_rwx,
             T_VALUE:  self.as_value
         }
-        self.arrow = config.arrow_symbol
+        self.arrow = config.ARROW_SYMBOL
 
     def as_stack(self, s):
         return idaapi.COLSTR(s, idaapi.SCOLOR_SEGNAME)
@@ -161,24 +162,52 @@ class Colorizer(object):
     def colorize_value(self, v):
         ptr_str = dbg.format_ptr(v.value)
         return self.colours[v.type](ptr_str)
+    
+
+    def colorize_by_type(self, value, size):
+        value_type = get_value_type(value)
+        fmt_value  = utils.fmt_by_size(value, size)
+        return self.colours[value_type](fmt_value)
 
     def as_ptr(self, value):
         c = self.colorize_value(value)
         return self.as_arrow_string(c)
 
+    def format_pointer_chain(self, value, stack_view=False):
+        reduced = False
+        chain = self.get_ptr_chain(value)
+
+        result = ""
+        result += self.colorize_value(chain[0])
+
+        vals = chain[1:]
+        if len(vals) > config.MAX_DEREF_LEVELS:
+            vals = vals[:config.MAX_DEREF_LEVELS]
+            reduced = True
+
+        result += ''.join([self.as_ptr(value) for value in vals])
+        if reduced:
+            result += self.as_arrow_string("[...]")
+
+        result += self.get_value_info(chain[-1], stack_view=stack_view)
+        if chain.limit_exceeded:
+            result += self.as_arrow_string("[...]")
+
+        return result
+
     def as_arrow_string(self, string):
-        return " %s %s" % (self.arrow, string)
+        return f" {self.arrow} {string}"
 
     def as_closed_string(self, v, t):
-        return ' (%s)' % self.colours[t](v)
+        return f" ({self.colours[t](v)})"
 
     def as_mem_string(self, string):
         value = self.strip_str(string)
-        max_string_len = config.max_string_len
+        max_string_len = config.MAX_STRING_LENGTH
         if len(value) > max_string_len:
             value = value[:max_string_len]
-            return ' %s ("%s"...)' % (self.arrow, value)
-        return ' %s ("%s")' % (self.arrow, value)
+            return f' {self.arrow} ("{value}"...)'
+        return f' {self.arrow} ("{value}")'
 
     def is_code(self, ea):
         flags = idc.get_full_flags(ea)
@@ -205,7 +234,7 @@ class Colorizer(object):
         return repr(d).replace("'","")
 
     def get_disasm(self, ea):
-        d = idc.GetDisasm(ea)[:config.max_string_len]
+        d = idc.GetDisasm(ea)[:config.MAX_STRING_LENGTH]
         return self.strip_disas_spaces(d)
 
     def get_string(self, ea):
@@ -217,7 +246,7 @@ class Colorizer(object):
     def get_printable(self, val):
         packed = dbg.pack(val).replace(b'\x00', b'')
         if len(packed) > 0 and self.is_ascii(packed):
-            return self.as_comment(' /* %s */' % repr(packed))
+            return self.as_comment(f' /* {repr(packed.decode("utf-8"))} */')
         return ''
 
     def get_area_name(self, ea, val_type):
@@ -238,7 +267,7 @@ class Colorizer(object):
         seg_name = idc.get_segm_name(ea)
         if seg_name is not None:
             if name:
-                name = "%s ! %s" % (seg_name, name)
+                name = f"{seg_name} ! {name}"
             else:
                 name = seg_name
         return name
@@ -260,7 +289,7 @@ class Colorizer(object):
 
     def str_or_value(self, v):
         string = self.get_string(v.value)
-        if string and len(string) >= config.min_string_len and self.is_printable(string):
+        if string and len(string) >= config.MIN_STRING_LENGTH and self.is_printable(string):
             return self.as_mem_string(string)
         return self.get_ptr_value(v)
 
@@ -275,7 +304,7 @@ class Colorizer(object):
             return result
 
         area_name = ""
-        if config.show_area_name:
+        if config.SHOW_AREA_NAME:
             area_name = self.as_area_name(v)
 
         if val_type == T_CODE:
@@ -295,6 +324,3 @@ class Colorizer(object):
                 result += self.str_or_value(v)
 
         return result
-
-# -----------------------------------------------------------------------
-

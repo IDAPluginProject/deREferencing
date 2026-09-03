@@ -1,10 +1,9 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 #
 # deREferencing - by @danigargu
 #
 
-# -----------------------------------------------------------------------
+
 class RegisterSet(object):
     pc     = None
     stack  = None
@@ -32,7 +31,7 @@ class RegisterSet(object):
         for reg in self.all:
             yield reg
 
-# -----------------------------------------------------------------------
+
 # CPU registers and flags
 
 x86_flags = ('ID', 'VIP', 'VIF', 'AC', 'VM', 'RF', 'NT', 'IOPL', 'OF', 'DF',

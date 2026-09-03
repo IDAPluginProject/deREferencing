@@ -1,18 +1,19 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 #
 # deREferencing - by @danigargu
 #
 
-arrow_symbol      = "->"
-show_leyend       = True
-min_string_len    = 3
-max_string_len    = 50
-max_deref_levels  = 2
-deref_limit       = 20
-show_area_name    = True
-highlight_changes = True
-highlight_color   = 0xFFD073
-n_stack_entries   = 150
-
-
+ARROW_SYMBOL      = "→"
+MIN_STRING_LENGTH = 3
+MAX_STRING_LENGTH = 50
+MAX_DEREF_LEVELS  = 2
+DEREF_LIMIT       = 20
+FLAGS_WIDTH       = 70
+SHOW_LEGEND       = True
+SHOW_AREA_NAME    = True
+SHOW_RETURN_ADDR  = True
+HIGHLIGHT_CHANGES = True
+HIGHLIGHT_COLOR   = 0xFFD073
+STACK_ENTRIES     = 150
+PARSE_CALL_ARGS   = True
+PAUSE_DBGHOOKS    = False

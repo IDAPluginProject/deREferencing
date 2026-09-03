@@ -29,7 +29,7 @@ is_pefile = False
 
 m = sys.modules[__name__]
 
-# -----------------------------------------------------------------------
+
 class DbgHooks(idaapi.DBG_Hooks):
     def __init__(self, callback):
         super(DbgHooks, self).__init__()
@@ -51,7 +51,7 @@ class DbgHooks(idaapi.DBG_Hooks):
     def dbg_process_attach(self, pid, tid, ea, name, base, size):
         self.notify()
 
-# -----------------------------------------------------------------------
+
 def get_bitness():
     # compatibility IDA 9.0 and above
     if idaapi.IDA_SDK_VERSION >= 900:
@@ -66,7 +66,8 @@ def get_bitness():
             return 64
         elif info.is_32bit():
             return 32
-# -----------------------------------------------------------------------
+
+
 def get_ptrsize():
     ptr_size = None
     bitness = get_bitness()
@@ -77,7 +78,7 @@ def get_ptrsize():
         ptr_size = 4
     return ptr_size
 
-# -----------------------------------------------------------------------
+
 def supported_cpu():
     cpuname = None
     if idaapi.IDA_SDK_VERSION >= 900:
@@ -91,7 +92,7 @@ def supported_cpu():
         return True
     return False
 
-# -----------------------------------------------------------------------
+
 def get_thread_tib(tid):
     tib_segm_name = "TIB[%08X]" % tid
     tib_segm = idaapi.get_segm_by_name(tib_segm_name)
@@ -110,7 +111,7 @@ def get_thread_tib(tid):
         ea += 0x1000
     return tib
 
-# -----------------------------------------------------------------------
+
 def get_stack_segment():
     thread_id = idaapi.get_current_thread()
     tib_ea = get_thread_tib(thread_id)
@@ -120,7 +121,7 @@ def get_stack_segment():
         return idaapi.getseg(stack_limit)
     return None
 
-# -----------------------------------------------------------------------
+
 def get_last_error():
     thread_id = idaapi.get_current_thread()
     tib_ea = get_thread_tib(thread_id)
@@ -129,40 +130,40 @@ def get_last_error():
         return m.get_ptr(tib_ea + offset)
     return None
 
-# -----------------------------------------------------------------------
+
 def format_ptr(x):
     return m.mem_fmt % x
 
-# -----------------------------------------------------------------------
+
 def pack(val):
     return struct.pack(m.pack_fmt, val)
 
-# -----------------------------------------------------------------------
+
 def to_uint(val):
     if m.ptr_size == 4:
         return val & 0xFFFFFFFF
     return val & 0xFFFFFFFFFFFFFFFF
 
-# -----------------------------------------------------------------------
+
 def is_process_suspended():
     return (idaapi.get_process_state() == -1)
 
-# -----------------------------------------------------------------------
+
 def NtCurrentTeb():
     return idaapi.Appcall.proto("ntdll_NtCurrentTeb", "DWORD __stdcall NtCurrentTeb(void);")()
 
-# -----------------------------------------------------------------------
+
 def GetLastError():
     return idaapi.Appcall.proto("kernel32_GetLastError", "DWORD __stdcall GetLastError();")()
 
-# -----------------------------------------------------------------------
+
 def GetLastErrorEx():
     tib_ea = get_thread_tib(idaapi.get_current_thread())
     if tib_ea:
         return idc.get_wide_dword(tib_ea+0x34)
     return None
 
-# -----------------------------------------------------------------------
+
 def set_thread_info():
     if m.is_pefile:
         current_thread_id = idaapi.get_current_thread()
@@ -172,7 +173,7 @@ def set_thread_info():
     elif m.filetype == idaapi.f_ELF:
         pass
 
-# -----------------------------------------------------------------------
+
 def initialize():
     if m.initialized:
         return
@@ -218,6 +219,4 @@ def initialize():
         m.registers = regs.mips
 
     m.initialized = True
-
-# -----------------------------------------------------------------------
 

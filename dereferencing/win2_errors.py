@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 #
 # deREferencing - by @danigargu
 #
@@ -3013,6 +3012,6 @@ system_error_codes = {
   15864: "STORE_ERROR_LICENSE_REVOKED",
 }
 
+
 def error_code_to_name(errno):
   return system_error_codes.get(errno)
-

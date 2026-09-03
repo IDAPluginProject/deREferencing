@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 #
 # deREferencing - by @danigargu
 #
@@ -10,11 +9,10 @@ import ida_bytes
 
 from dereferencing import dbg, config, actions
 
-from dereferencing.constants import *
+from dereferencing.constants import REGS_WIDGET_TITLE, STACK_WIDGET_TITLE
 from dereferencing.views import CustViewer
-from dereferencing.actions import ActionHandler
 
-# -----------------------------------------------------------------------
+
 class StackViewer(CustViewer):
     def __init__(self, parent=None):
         super(StackViewer, self).__init__()
@@ -31,18 +29,18 @@ class StackViewer(CustViewer):
             try:
                 self.base_expr = b
                 self.reload_info()
-            except:
+            except Exception:
                 idaapi.warning("Invalid expression")
         else:
-            self.base_addr = None
+            self.base_expr = None
 
     def set_stack_entries(self):
-        value = idaapi.ask_long(config.n_stack_entries, "Set the number of stack entries to show")
+        value = idaapi.ask_long(config.STACK_ENTRIES, "Set the number of stack entries to show")
         if value is not None:
             if value <= 0:
                 idaapi.warning("Negative values are not allowed")
                 return False
-            config.n_stack_entries = value
+            config.STACK_ENTRIES = value
             self.reload_info()
             return True
         return False
@@ -65,9 +63,10 @@ class StackViewer(CustViewer):
                 else:
                     idc.patch_dword(ea, value)
                 self.reload_info()
-            except:
+            except Exception:
                 idaapi.warning("Invalid expression")
                 
+
     def can_edit_line(self):
         return True
 
@@ -79,7 +78,8 @@ class StackViewer(CustViewer):
             actions.MenuAction("s_jump_hex",         self.jump_in_hex,         "Jump in hex",          None, "X",         89),
             actions.MenuAction("s_jump_to",          self.jump_to,             "Sync with expr",       shortcut="G", icon=124),
             actions.MenuAction("s_modify_value",     self.modify_value,        "Modify value",         None, "E",         104),
-            actions.MenuAction("s_stack_entries",    self.set_stack_entries,   "Stack entries"),
+            actions.MenuAction("s_dump_memory",      self.dump_memory,         "Dump memory",          None, "Ctrl-D",    3),
+            actions.MenuAction("s_stack_entries",    self.set_stack_entries,   "Set stack entries"),
             actions.MenuAction("-"),
         ])
         actions.register_menu_actions(self)
@@ -90,7 +90,8 @@ class StackViewer(CustViewer):
     def Create(self, title):
         if not idaapi.simplecustviewer_t.Create(self, title):
             return False
-
+        
+        self.hide_ida_status_bar()
         self.register_actions()
         self.hook = dbg.DbgHooks(self.reload_info)
         self.hook.hook()
@@ -117,26 +118,7 @@ class StackViewer(CustViewer):
         pass
 
     def parse_value(self, value):
-        reduced = False
-        chain = self.get_ptr_chain(value)
-
-        result = ""
-        result += self.colorize_value(chain[0])
-
-        vals = chain[1:]
-        if len(vals) > config.max_deref_levels:
-            vals = vals[:config.max_deref_levels]
-            reduced = True
-
-        result += ''.join([self.as_ptr(value) for value in vals])
-        if reduced:
-            result += self.as_arrow_string("[...]")
-
-        result += self.get_value_info(chain[-1], stack_view=True)
-        if chain.limit_exceeded:
-            result += self.as_arrow_string("[...]")
-
-        return result
+        return self.format_pointer_chain(value, stack_view=True)
 
     def reload_info(self):
         if not dbg.is_process_suspended():
@@ -148,33 +130,27 @@ class StackViewer(CustViewer):
         else:
             base_addr = idaapi.str2ea(self.base_expr)
             if base_addr == idc.BADADDR:
-                idaapi.warning("Invalid base expr: %s" % self.base_expr)
+                idaapi.warning(f"Invalid base expr: {self.base_expr}")
                 return False
 
             if not idaapi.is_loaded(base_addr):
-                idaapi.warning("Memory address is not loaded: $#x" % base_addr)
+                idaapi.warning(f"Memory address is not loaded: {base_addr:#x}")
                 return False
 
         self.ClearLines()
         dbg.set_thread_info()
 
-        try:
-            segm_end = idc.get_segm_end(base_addr)
-            n_entries = config.n_stack_entries or ((segm_end-base_addr) // dbg.ptr_size)
+        segm_end = idc.get_segm_end(base_addr)
+        n_entries = config.STACK_ENTRIES or ((segm_end-base_addr) // dbg.ptr_size)
 
-            for i in range(n_entries):
-                offset = i * dbg.ptr_size
-                ptr = base_addr + offset
+        for i in range(n_entries):
+            offset = i * dbg.ptr_size
+            ptr = base_addr + offset
 
-                if not idaapi.is_loaded(ptr):
-                    break
+            if not idaapi.is_loaded(ptr):
+                break
+            self.add_line("%02d:%04X  %s" % (i, offset, self.parse_value(ptr)))
 
-                value = dbg.get_ptr(ptr)
-                self.add_line("%02d:%04X  %s" % (i, offset, self.parse_value(ptr)))
-
-        except Exception as e:
-            idaapi.warning(str(e))
-            return False
         return True
 
     def OnDblClick(self, shift):
@@ -190,7 +166,6 @@ class StackViewer(CustViewer):
         stack_view = idaapi.find_widget("Stack view")
         if stack_view:
             idaapi.set_dock_pos(STACK_WIDGET_TITLE, "Stack view", idaapi.DP_INSIDE)
-            #idaapi.close_widget(stack_view, 0)
         else:
             idaapi.set_dock_pos(STACK_WIDGET_TITLE, REGS_WIDGET_TITLE, idaapi.DP_BOTTOM)
 
@@ -198,6 +173,3 @@ class StackViewer(CustViewer):
         self.unregister_actions()
         if self.hook:
             self.hook.unhook()
-
-# -----------------------------------------------------------------------
-

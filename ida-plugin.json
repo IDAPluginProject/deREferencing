@@ -3,7 +3,7 @@
   "plugin": {
     "name": "deREferencing",
     "entryPoint": "dereferencing.py",
-    "version": "2025.9.24",
+    "version": "2026.9.3",
     "idaVersions": ">=7.1",
     "description": "New registers and stack views with dereferenced pointers, colors and other useful information",
     "license": "GPL-3.0",

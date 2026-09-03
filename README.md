@@ -12,9 +12,15 @@ Supports following architectures: **x86, x86-64, ARM, ARM64, MIPS32 and MIPS64**
 
 ## Install
 
-Just drop the `dereferencing.py` file and the `dereferencing` folder into IDA's plugin directory.
+Install with hcli:
 
-To install just for the current user, copy the files into one of these directories:
+```sh
+hcli plugin install dereferencing
+```
+
+Alternatively, install manually by dropping the `dereferencing.py` file and the `dereferencing` folder into IDA's plugin directory.
+
+For a user-local manual installation, copy the files into the appropriate plugin directory:
 
 | OS          | Plugin path                          |
 | ----------- | ------------------------------------ |
